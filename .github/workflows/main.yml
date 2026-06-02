@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - '.github/workflows/deploy-frontend.yml'
+      - '.github/workflows/main.yml'
   workflow_dispatch:
 
 permissions:
@@ -32,19 +32,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'yarn'
-          cache-dependency-path: 'frontend/yarn.lock'
+          cache: 'npm'
 
       - name: Install dependencies
         working-directory: frontend
-        run: yarn install --frozen-lockfile
+        run: npm install
 
       - name: Build frontend
         working-directory: frontend
         env:
           REACT_APP_BACKEND_URL: https://orchid-backend.onrender.com
           CI: false
-        run: yarn build
+        run: npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
