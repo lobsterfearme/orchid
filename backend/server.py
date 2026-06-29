@@ -18,10 +18,15 @@ from datetime import datetime, timezone
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection (optional - only needed for status endpoints)
+mongo_url = os.environ.get('MONGO_URL', '')
+db_name = os.environ.get('DB_NAME', 'orchid')
+if mongo_url:
+    mongo_client = AsyncIOMotorClient(mongo_url)
+    db = mongo_client[db_name]
+else:
+    mongo_client = None
+    db = None
 
 # Tuya API config - tuya app project (Access ID starts with 3)
 TUYA_CLIENT_ID = os.environ.get('TUYA_CLIENT_ID', '3vpcksvjswdgrujus57c')
@@ -164,11 +169,13 @@ class MistRequest(BaseModel):
 
 @api_router.get("/")
 async def root():
-    return {"message": "Orchid Care API"}
+    return {"message": "Orchid Care API", "tuya_client_id": TUYA_CLIENT_ID[:8] + "..."}
 
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
+    if db is None:
+        return StatusCheck(client_name=input.client_name)
     status_dict = input.model_dump()
     status_obj = StatusCheck(**status_dict)
     doc = status_obj.model_dump()
@@ -179,6 +186,8 @@ async def create_status_check(input: StatusCheckCreate):
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
+    if db is None:
+        return []
     status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
     for check in status_checks:
         if isinstance(check['timestamp'], str):
@@ -289,4 +298,5 @@ app.add_middleware(
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if mongo_client:
+        mongo_client.close()
